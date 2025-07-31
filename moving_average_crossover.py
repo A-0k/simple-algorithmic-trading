@@ -48,14 +48,28 @@ class TradeResult:
 
 
 def download_data(symbol: str, start: str) -> pd.DataFrame:
-    """Download historical adjusted closing price data using yfinance."""
+    """
+    Download historical price data using yfinance and ensure an adjusted closing
+    price column exists.
+
+    The yfinance library changed its default behaviour (`auto_adjust=True`) in
+    version 0.2, which removes the `Adj Close` column.  To retain the
+    `Adj Close` column, we explicitly set `auto_adjust=False`.  If the returned
+    dataset still lacks an `Adj Close` column (perhaps due to upstream changes),
+    the function falls back to using the `Close` column as a proxy.
+    """
     try:
-        data = yf.download(symbol, start=start, progress=False)
+        # Explicitly set auto_adjust=False so that 'Adj Close' is returned
+        data = yf.download(symbol, start=start, progress=False, auto_adjust=False)
     except Exception as exc:
         raise RuntimeError(f"Failed to download data for {symbol}: {exc}") from exc
     if data.empty:
         raise ValueError(f"No data returned for symbol {symbol}. Check the ticker symbol.")
+    # Fallback: if 'Adj Close' is missing but 'Close' is present, copy it
+    if 'Adj Close' not in data.columns and 'Close' in data.columns:
+        data['Adj Close'] = data['Close']
     return data
+
 
 
 def compute_signals(data: pd.DataFrame, short_window: int, long_window: int) -> pd.DataFrame:
